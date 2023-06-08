@@ -14,6 +14,9 @@ class GameState():
             ["wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
         ]
 
+        self.moveFunctions = {'p':self.getPawnMoves,'R':self.getRockMoves,'N':self.getKnightMoves
+                              ,'B':self.getBishopMoves,'Q':self.getQueenMoves,'K':self.getKingMoves}
+
         self.whiteToMove = True
         self.moveLog = []
 
@@ -22,6 +25,129 @@ class GameState():
         self.board[move.endRow][move.endCol] = move.pieceMoved
         self.moveLog.append(move)
         self.whiteToMove = not self.whiteToMove
+    
+    def undoMove(self):
+        if len(self.moveLog) !=0:
+            move = self.moveLog.pop()
+            self.board[move.startRow][move.startCol] = move.pieceMoved
+            self.board[move.endRow][move.endCol] = move.pieceCaptured
+
+
+    def getAllPossibleMoves(self):
+        moves = []
+        for r in range(len(self.board)):
+            for c in range(len(self.board[0])):
+                turn  = self.board[r][c][0]
+                if(turn == 'w' and self.whiteToMove) or (turn == 'b' and not self.whiteToMove):
+                    piece = self.board[r][c][1]
+                    self.moveFunctions[piece](r,c,moves)
+        return moves
+
+    def getValidMoves(self):
+        return self.getAllPossibleMoves()
+
+
+    def getPawnMoves(self,r,c,moves):
+        if self.whiteToMove:
+            if(r>=1 and self.board[r-1][c]=="--"):
+                moves.append(Move((r,c),(r-1,c),self.board))
+                if r==6 and self.board[r-2][c] == '--':
+                    moves.append(Move((r,c),(r-2,c),self.board))
+            
+            if(r>0 and c>0 and self.board[r-1][c-1]!="--"):
+                moves.append(Move((r,c),(r-1,c-1),self.board))
+            if(r>0 and c<7 and self.board[r-1][c+1]!="--"):
+                moves.append(Move((r,c),(r-1,c+1),self.board))
+        
+        else:
+            if(r<7 and self.board[r+1][c]=="--"):
+                moves.append(Move((r,c),(r+1,c),self.board))
+                if r==1 and self.board[r+2][c] == '--':
+                    moves.append(Move((r,c),(r+2,c),self.board))
+            
+            if(r<7 and c>0 and self.board[r+1][c-1]!="--"):
+                moves.append(Move((r,c),(r+1,c-1),self.board))
+            if(r<7 and c<7 and self.board[r+1][c+1]!="--"):
+                moves.append(Move((r,c),(r+1,c+1),self.board))
+
+    def getRockMoves(self,r,c,moves):
+        dir = {(0,1),(1,0),(0,-1),(-1,0)}
+
+        for (x,y) in dir:
+            r1 = r
+            c1 = c
+            while(r1+x<=7 and c1+y <=7 and r1+x>=0 and c1+y>=0):
+                if(self.board[r1+x][c1+y]=='--'):
+                    moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                else:
+                    if(self.board[r1+x][c1+y][0]=='b' and self.whiteToMove) or (self.board[r1+x][c1+y][0]=='w' and not self.whiteToMove):
+                        moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                    break
+                r1 = r1+x
+                c1 = c1+y  
+
+    def getBishopMoves(self,r,c,moves):
+        dir = {(1,1),(1,-1),(-1,1),(-1,-1)}
+
+        for (x,y) in dir:
+            r1 = r
+            c1 = c
+            while(r1+x<=7 and c1+y <=7 and r1+x>=0 and c1+y>=0):
+                if(self.board[r1+x][c1+y]=='--'):
+                    moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                else:
+                    if(self.board[r1+x][c1+y][0]=='b' and self.whiteToMove) or (self.board[r1+x][c1+y][0]=='w' and not self.whiteToMove):
+                        moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                    break
+                r1 = r1+x
+                c1 = c1+y  
+
+    def getQueenMoves(self,r,c,moves):
+        dir = {(0,1),(1,0),(0,-1),(-1,0),(1,1),(1,-1),(-1,1),(-1,-1)}
+
+        for (x,y) in dir:
+            r1 = r
+            c1 = c
+            while(r1+x<=7 and c1+y <=7 and r1+x>=0 and c1+y>=0):
+                if(self.board[r1+x][c1+y]=='--'):
+                    moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                else:
+                    if(self.board[r1+x][c1+y][0]=='b' and self.whiteToMove) or (self.board[r1+x][c1+y][0]=='w' and not self.whiteToMove):
+                        moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                    break
+                r1 = r1+x
+                c1 = c1+y  
+
+    def getKingMoves(self,r,c,moves):
+        dir = {(0,1),(1,0),(0,-1),(-1,0),(1,1),(1,-1),(-1,1),(-1,-1)}
+
+        for (x,y) in dir:
+            r1 = r
+            c1 = c
+            if(r1+x<=7 and c1+y <=7 and r1+x>=0 and c1+y>=0):
+                if(self.board[r1+x][c1+y]=='--'):
+                    moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                else:
+                    if(self.board[r1+x][c1+y][0]=='b' and self.whiteToMove) or (self.board[r1+x][c1+y][0]=='w' and not self.whiteToMove):
+                        moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                r1 = r1+x
+                c1 = c1+y        
+
+    def getKnightMoves(self,r,c,moves):
+        dir = {(-1,-2),(-1,2),(1,-2),(1,2),(2,1),(2,-1),(-2,1),(-2,-1)}
+
+        for (x,y) in dir:
+            r1 = r
+            c1 = c
+            while(r1+x<=7 and c1+y <=7 and r1+x>=0 and c1+y>=0):
+                if(self.board[r1+x][c1+y]=='--'):
+                    moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                else:
+                    if(self.board[r1+x][c1+y][0]=='b' and self.whiteToMove) or (self.board[r1+x][c1+y][0]=='w' and not self.whiteToMove):
+                        moves.append(Move((r,c),(r1+x,c1+y),self.board))
+                    break
+                r1 = r1+x
+                c1 = c1+y  
 
 class Move():
 
@@ -39,6 +165,13 @@ class Move():
         self.endCol = endSq[1]
         self.pieceMoved = board[self.startRow][self.startCol]
         self.pieceCaptured = board[self.endRow][self.endCol]
+        self.moveID = self.startRow*1000 + self.startCol*100 + self.endRow*10 + self.endCol
+
+    def __eq__(self,other):
+        if isinstance(other,Move):
+            return self.moveID == other.moveID
+        return False
+        
 
 
     def getChessNotations(self):
