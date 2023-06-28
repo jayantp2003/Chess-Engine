@@ -3,7 +3,7 @@
 
 Hey everyone, I have implemented a chess engine in python using the pygame module.
 
-## Journey
+# Journey
 
 I have firstly implemented the chess game with functionality so that we can determine the possible moves and then set the conditions for each of the piece to determine which all moves are valid ones, also added the feature of king castling, pawn en passant.
 
@@ -28,5 +28,5 @@ So, This is the progress of my project till now. I did look for different algort
 
 As this project uses pygame module, so we need to install this,
 ```bash 
-   pip install pygame
+pip install pygame
 
