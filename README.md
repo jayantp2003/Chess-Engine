@@ -24,9 +24,30 @@ To make it faster, I used the concept of alpha beta pruning which made my progra
 So, This is the progress of my project till now. I did look for different algortihm available like hashing technique which used the Material sum and material difference which player is in advantage but they were less efficient than the one I used in which I assigned each piece a particular score and also assigned particular score to board for every position of every piece.
 
 
-## Requirements
+# Requirements
 
 As this project uses pygame module, so we need to install this,
 ```bash 
 pip install pygame
+```
+# Usage
+
+1. Clone the repo into your local directory.
+```
+git clone https://github.com/jayantp2003/Chess-Engine.gi
+```   
+2. Install the requirement
+```
+pip install pygame
+```
+3. Move into chess directory
+```
+cd chess
+```
+Note : In the Main file, we have the option of player 1 and player 2 where we can decide which one is for AI and which one is for human. You are allowed to play all four possible combination of human and AI.
+
+4. Run ChessMain.py
+```
+python ChessMain.py
+```
 
