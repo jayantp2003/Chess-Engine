@@ -34,7 +34,7 @@ pip install pygame
 
 1. Clone the repo into your local directory.
 ```
-git clone https://github.com/jayantp2003/Chess-Engine.gi
+git clone https://github.com/jayantp2003/Chess-Engine.git
 ```   
 2. Install the requirement
 ```
