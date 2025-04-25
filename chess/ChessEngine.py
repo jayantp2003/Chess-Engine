@@ -98,7 +98,6 @@ class GameState:
         """
         Undo the last move made in the chess game.
         """
-
         if len(self.moveLog) != 0:
             move = self.moveLog.pop()
             self.board[move.startRow][move.startCol] = move.pieceMoved
@@ -108,26 +107,34 @@ class GameState:
                 self.whiteKingLocation = (move.startRow, move.startCol)
             elif move.pieceMoved == "bK":
                 self.blackKingLocation = (move.startRow, move.startCol)
+                
+            # Special case for en passant
             if move.is_enpassant_move:
+                # Clear the landing square
                 self.board[move.endRow][move.endCol] = "--" 
+                # Restore the captured pawn
                 self.board[move.startRow][move.endCol] = move.pieceCaptured
 
+            # Restore en passant possibility
             self.enpassant_possible_log.pop()
             self.enpassant_possible = self.enpassant_possible_log[-1]
 
+            # Restore castling rights
             self.castle_rights_log.pop()
-            self.current_castling_rights = self.castle_rights_log[-1]  
+            self.current_castling_rights = self.castle_rights_log[-1]
+            
+            # Special case for castling
             if move.is_castle_move:
-                if move.endCol - move.startCol == 2: 
-                    self.board[move.endRow][move.endCol + 1] = self.board[move.endRow][
-                        move.endCol - 1
-                    ]
+                if move.endCol - move.startCol == 2:  # Kingside castle
+                    # Move rook back to original position
+                    self.board[move.endRow][move.endCol + 1] = self.board[move.endRow][move.endCol - 1]
                     self.board[move.endRow][move.endCol - 1] = "--"
-                else: 
-                    self.board[move.endRow][move.endCol - 2] = self.board[move.endRow][
-                        move.endCol + 1
-                    ]
+                else:  # Queenside castle
+                    # Move rook back to original position
+                    self.board[move.endRow][move.endCol - 2] = self.board[move.endRow][move.endCol + 1]
                     self.board[move.endRow][move.endCol + 1] = "--"
+                    
+            # Reset checkmate and stalemate flags
             self.checkmate = False
             self.stalemate = False
 
@@ -720,8 +727,17 @@ class Move:
         self.startCol = start_square[1]
         self.endRow = end_square[0]
         self.endCol = end_square[1]
-        self.pieceMoved = board[self.startRow][self.startCol]
-        self.pieceCaptured = board[self.endRow][self.endCol]
+        
+        # Add bounds checking to prevent IndexError
+        if (0 <= self.startRow < 8 and 0 <= self.startCol < 8 and 
+            0 <= self.endRow < 8 and 0 <= self.endCol < 8):
+            self.pieceMoved = board[self.startRow][self.startCol]
+            self.pieceCaptured = board[self.endRow][self.endCol]
+        else:
+            # Set default values if out of bounds
+            self.pieceMoved = "--"
+            self.pieceCaptured = "--"
+            
         self.is_pawn_promotion = (self.pieceMoved == "wp" and self.endRow == 0) or (
             self.pieceMoved == "bp" and self.endRow == 7
         )

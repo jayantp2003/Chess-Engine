@@ -1,13 +1,15 @@
 import pygame as p
-import ChessEngine ,ChessAI
+import ChessEngine, ChessAI
 from multiprocessing import Process, Queue
+import os
 
-WIDTH = HEIGHT = 512
+WIDTH = HEIGHT = 500
 MOVE_LOG_PANEL_WIDTH = 250
 MOVE_LOG_PANEL_HEIGHT = HEIGHT
+AI_INFO_PANEL_HEIGHT = 210  # Increased from 150 to 200 to accommodate all stats
 DIMENSION = 8
 SQ_SIZE = HEIGHT // DIMENSION
-MAX_FPS = 15
+MAX_FPS = 30
 
 Images={}
 def loadImages():
@@ -18,7 +20,7 @@ def loadImages():
 
 def main():
     p.init()
-    screen = p.display.set_mode((WIDTH + MOVE_LOG_PANEL_WIDTH, HEIGHT))
+    screen = p.display.set_mode((WIDTH + MOVE_LOG_PANEL_WIDTH, HEIGHT + AI_INFO_PANEL_HEIGHT))
     clock = p.time.Clock()
     screen.fill(p.Color("white"))
     gs = ChessEngine.GameState()
@@ -35,8 +37,9 @@ def main():
     moveUndone = False
     moveFinderProcess = None
     moveLogFont = p.font.SysFont("Arial", 14, False, False)
-    p1 = False  # if a human is playing white, then this will be True, else False
-    p2 = False  # if a human is playing white, then this will be True, else False
+    aiInfoFont = p.font.SysFont("Arial", 14, False, False)
+    p1 = True  # if a human is playing white, then this will be True, else False
+    p2 = False  # if a human is playing black, then this will be True, else False
 
 
     while running :
@@ -52,7 +55,7 @@ def main():
                 running = False
                 continue
             elif e.type == p.MOUSEBUTTONDOWN:
-                if not gameOver:
+                if not gameOver and human_turn:  # Only process mouse clicks if it's human's turn
                     location = p.mouse.get_pos()
                     col = location[0]//SQ_SIZE
                     row = location[1]//SQ_SIZE
@@ -62,7 +65,7 @@ def main():
                     else:
                         sqSelected=(row,col)
                         playerClicks.append(sqSelected)
-                    if len(playerClicks)==2 and human_turn:
+                    if len(playerClicks)==2:  # Removed redundant human_turn check here
                         move = ChessEngine.Move(playerClicks[0],playerClicks[1],gs.board)
                         for i in range(len(validMoves)):
                             if move == validMoves[i]:
@@ -106,9 +109,18 @@ def main():
                 moveFinderProcess.start()
 
             if not moveFinderProcess.is_alive():
-                ai_move = return_queue.get()
+                result = return_queue.get()
+                # Check if result is a tuple containing both move and stats
+                if isinstance(result, tuple) and len(result) == 2:
+                    ai_move, received_stats = result
+                    # Update the global AI stats in ChessAI module with received stats
+                    ChessAI.ai_stats = received_stats
+                else:
+                    ai_move = result
+                    
                 if ai_move is None:
                     ai_move = ChessAI.findRandomMove(validMoves)
+                    
                 gs.makeMove(ai_move)
                 moveMade = True
                 animate = True
@@ -127,6 +139,7 @@ def main():
 
         if not gameOver:
             drawMoveLog(screen, gs, moveLogFont)
+            drawAIInfoPanel(screen, aiInfoFont, gs)
 
         
         if gs.checkmate:
@@ -161,25 +174,39 @@ def highlightSquares(screen, gs, validMoves, sqSelected):
     """
     Highlight square selected and moves for piece selected.
     """
+    # Highlight last move
     if (len(gs.moveLog)) > 0:
         lastMove = gs.moveLog[-1]
         s = p.Surface((SQ_SIZE, SQ_SIZE))
         s.set_alpha(100)
         s.fill(p.Color('green'))
         screen.blit(s, (lastMove.endCol * SQ_SIZE, lastMove.endRow * SQ_SIZE))
+    
+    # Highlight king in check with red background
+    if gs.in_check:
+        kingPos = gs.whiteKingLocation if gs.whiteToMove else gs.blackKingLocation
+        s = p.Surface((SQ_SIZE, SQ_SIZE))
+        s.set_alpha(150)  # More visible alpha for check
+        s.fill(p.Color('red'))
+        screen.blit(s, (kingPos[1] * SQ_SIZE, kingPos[0] * SQ_SIZE))
+    
+    # Highlight selected square and possible moves
     if sqSelected != ():
         row, col = sqSelected
-        if gs.board[row][col][0] == ('w' if gs.whiteToMove else 'b'):  # sqSelected is a piece that can be moved
-            # highlight selected square
-            s = p.Surface((SQ_SIZE, SQ_SIZE))
-            s.set_alpha(100)  # transparency value 0 -> transparent, 255 -> opaque
-            s.fill(p.Color('blue'))
-            screen.blit(s, (col * SQ_SIZE, row * SQ_SIZE))
-            # highlight moves from that square
-            s.fill(p.Color('yellow'))
-            for move in validMoves:
-                if move.startRow == row and move.startCol == col:
-                    screen.blit(s, (move.endCol * SQ_SIZE, move.endRow * SQ_SIZE))
+        # Check bounds before accessing the board
+        if 0 <= row < 8 and 0 <= col < 8:  # Make sure row and col are in bounds
+            piece = gs.board[row][col]
+            if piece != "--" and piece[0] == ('w' if gs.whiteToMove else 'b'):  # sqSelected is a piece that can be moved
+                # highlight selected square
+                s = p.Surface((SQ_SIZE, SQ_SIZE))
+                s.set_alpha(100)  # transparency value
+                s.fill(p.Color('blue'))
+                screen.blit(s, (col * SQ_SIZE, row * SQ_SIZE))
+                # highlight moves from that square
+                s.fill(p.Color('yellow'))
+                for move in validMoves:
+                    if move.startRow == row and move.startCol == col:
+                        screen.blit(s, (move.endCol * SQ_SIZE, move.endRow * SQ_SIZE))
 
 
 def drawPieces(screen,board):
@@ -219,6 +246,118 @@ def drawMoveLog(screen, gs, font):
         screen.blit(text_object, text_location)
         text_y += text_object.get_height() + line_spacing
 
+
+def drawAIInfoPanel(screen, font, gs):
+    """
+    Draws the AI info panel with detailed performance metrics.
+    """
+    aiInfoRect = p.Rect(0, HEIGHT, WIDTH + MOVE_LOG_PANEL_WIDTH, AI_INFO_PANEL_HEIGHT)
+    p.draw.rect(screen, p.Color('darkslategray'), aiInfoRect)
+    
+    # Calculate position score for the current position
+    current_position_score = ChessAI.scoreBoard(gs)
+    
+    # Calculate material balance
+    material_balance = calculate_material_balance(gs)
+    
+    # Update stats for current move
+    if ChessAI.ai_stats["positions_evaluated"] > 0:
+        ChessAI.ai_stats["nodes_for_current_move"] = ChessAI.ai_stats["positions_evaluated"]
+        ChessAI.ai_stats["nodes_pruned_for_current_move"] = ChessAI.ai_stats["alpha_beta_cutoffs"]
+    
+    # Create two columns of information
+    left_column = [
+        "POSITION EVALUATION",
+        f"Current Score: {current_position_score:.2f}" + (" (White advantage)" if current_position_score > 0 else " (Black advantage)" if current_position_score < 0 else " (Equal)"),
+        f"Material Balance: {material_balance:.1f}" + (" (White)" if material_balance > 0 else " (Black)" if material_balance < 0 else " (Equal)"),
+        f"Search Depth: {ChessAI.DEPTH}",
+        " ",
+        "SEARCH STATISTICS",
+        f"Positions Evaluated: {ChessAI.ai_stats['positions_evaluated']:,}",
+        f"Positions/Second: {ChessAI.ai_stats['positions_evaluated'] / max(0.001, ChessAI.ai_stats['time_spent']):,.0f}",
+        f"Computation Time: {ChessAI.ai_stats['time_spent']:.3f} sec"
+    ]
+    
+    right_column = [
+        "PRUNING EFFICIENCY",
+        f"Alpha-Beta Cutoffs: {ChessAI.ai_stats['alpha_beta_cutoffs']:,}",
+        f"Pruning Efficiency: {ChessAI.ai_stats['alpha_beta_cutoffs'] / max(1, ChessAI.ai_stats['positions_evaluated']):.2%}",  # Fixed missing closing parenthesis
+        " ",
+        "CURRENT MOVE ANALYSIS",
+        f"Nodes Explored: {ChessAI.ai_stats['nodes_for_current_move']:,}",
+        f"Nodes Pruned: {ChessAI.ai_stats['nodes_pruned_for_current_move']:,}"
+    ]
+    
+    # Add parallel efficiency if available but keep it shorter
+    if ChessAI.ai_stats.get("parallel_efficiency", 0) > 0:
+        right_column.append(" ")
+        right_column.append("PARALLELIZATION")
+        right_column.append(f"Speedup: {ChessAI.ai_stats['parallel_efficiency']:.2f}x ({ChessAI.NUM_WORKERS} cores)")
+    
+    # Display log file info at the bottom
+    log_path = os.path.relpath(ChessAI.log_file, os.path.dirname(os.path.abspath(__file__)))
+    bottom_info = [f"Logs: {log_path}"]
+    
+    # Render the columns with better spacing
+    padding_left = 15
+    padding_right = padding_left + 30  # More padding for the right column
+    line_spacing = 3  # Increased spacing between lines
+    column_width = WIDTH + 20  # Adjust width to prevent text overflow
+    
+    # Render left column with improved padding
+    text_y = padding_left
+    for i, text in enumerate(left_column):
+        if i == 0 or i == 5:  # Headers
+            header_font = p.font.SysFont("Arial", 12, True, False)
+            text_object = header_font.render(text, True, p.Color('lightblue'))
+        else:
+            text_object = font.render(text, True, p.Color('white'))
+            
+        text_location = aiInfoRect.move(padding_left, text_y)
+        screen.blit(text_object, text_location)
+        text_y += text_object.get_height() + line_spacing
+    
+    # Render right column with better alignment
+    text_y = padding_left
+    for i, text in enumerate(right_column):
+        if i == 0 or i == 4 or i == 8:  # Headers
+            header_font = p.font.SysFont("Arial", 12, True, False)
+            text_object = header_font.render(text, True, p.Color('lightblue'))
+        else:
+            text_object = font.render(text, True, p.Color('white'))
+            
+        # Ensure the right column is properly aligned and doesn't overflow
+        text_location = aiInfoRect.move(column_width, text_y)
+        screen.blit(text_object, text_location)
+        text_y += text_object.get_height() + line_spacing
+    
+    # Render bottom info with more space
+    text_y = AI_INFO_PANEL_HEIGHT - 25
+    # for text in bottom_info:
+    #     text_object = font.render(text, True, p.Color('gray'))
+    #     text_location = aiInfoRect.move(padding_left, text_y)
+    #     screen.blit(text_object, text_location)
+    #     text_y += text_object.get_height() + line_spacing
+
+def calculate_material_balance(gs):
+    """
+    Calculate the material balance (positive for white advantage, negative for black)
+    """
+    piece_values = {"Q": 9, "R": 5, "B": 3, "N": 3, "p": 1}
+    white_material = 0
+    black_material = 0
+    
+    for row in range(len(gs.board)):
+        for col in range(len(gs.board[0])):
+            piece = gs.board[row][col]
+            if piece != "--":
+                if piece[1] in piece_values:  # Skip kings (K)
+                    if piece[0] == "w":
+                        white_material += piece_values[piece[1]]
+                    else:
+                        black_material += piece_values[piece[1]]
+    
+    return white_material - black_material
 
 def drawEndGameText(screen, text):
     font = p.font.SysFont("Helvetica", 32, True, False)
